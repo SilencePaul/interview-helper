@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import anthropic
 
-from app.llm.base import LLMBase
+from app.llm.base import LLMBase, ChatResponse
 
 
 class ClaudeLLM(LLMBase):
@@ -16,11 +16,16 @@ class ClaudeLLM(LLMBase):
         system: str,
         messages: list[dict],
         max_tokens: int = 2048,
-    ) -> str:
+        tag: str = "",
+    ) -> ChatResponse:
         response = self._client.messages.create(
             model=model,
             max_tokens=max_tokens,
             system=system,
             messages=messages,
         )
-        return response.content[0].text
+        return ChatResponse(
+            text=response.content[0].text,
+            input_tokens=response.usage.input_tokens,
+            output_tokens=response.usage.output_tokens,
+        )

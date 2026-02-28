@@ -49,7 +49,8 @@ class TutorAgent:
             "每道问题单独一行，用数字编号（1. 2. 3.）。"
         )
         self._history = [{"role": "user", "content": prompt}]
-        reply = self._llm.chat(self._model, self._system, self._history)
+        r = self._llm.chat(self._model, self._system, self._history, tag="tutor.start_session")
+        reply = r.text
         self._history.append({"role": "assistant", "content": reply})
         # Parse numbered questions
         questions = []
@@ -62,7 +63,8 @@ class TutorAgent:
     def answer(self, user_answer: str) -> str:
         """Send user's answer; return tutor follow-up or readiness signal."""
         self._history.append({"role": "user", "content": user_answer})
-        reply = self._llm.chat(self._model, self._system, self._history)
+        r = self._llm.chat(self._model, self._system, self._history, tag="tutor.answer")
+        reply = r.text
         self._history.append({"role": "assistant", "content": reply})
         return reply
 
@@ -92,7 +94,8 @@ class InterviewerAgent:
             prompt += "约束：\n" + "\n".join(problem.constraints) + "\n\n"
         prompt += "请以面试官身份呈现这道题，并等待候选人的回答。"
         self._history = [{"role": "user", "content": prompt}]
-        reply = self._llm.chat(self._model, self._system, self._history)
+        r = self._llm.chat(self._model, self._system, self._history, tag="interviewer.present")
+        reply = r.text
         self._history.append({"role": "assistant", "content": reply})
         return reply
 
@@ -102,7 +105,8 @@ class InterviewerAgent:
         if self._problem and elapsed_sec >= self._problem.time_limit_sec:
             content = f"[时间到] 候选人说: {user_input}\n请给出总结性追问或结束面试。"
         self._history.append({"role": "user", "content": content})
-        reply = self._llm.chat(self._model, self._system, self._history)
+        r = self._llm.chat(self._model, self._system, self._history, tag="interviewer.probe")
+        reply = r.text
         self._history.append({"role": "assistant", "content": reply})
         return reply
 
@@ -120,7 +124,8 @@ class GraderAgent:
 
     def _grade(self, user_prompt: str, rubric: dict[str, int]) -> GradeResult:
         messages = [{"role": "user", "content": user_prompt}]
-        reply = self._llm.chat(self._model, self._system, messages)
+        r = self._llm.chat(self._model, self._system, messages, tag="grader.grade")
+        reply = r.text
 
         # Attempt JSON extraction
         try:

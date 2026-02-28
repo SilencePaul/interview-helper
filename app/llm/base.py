@@ -1,6 +1,14 @@
 """Abstract LLM interface."""
 from __future__ import annotations
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
+
+
+@dataclass
+class ChatResponse:
+    text: str
+    input_tokens: int
+    output_tokens: int
 
 
 class LLMBase(ABC):
@@ -11,6 +19,7 @@ class LLMBase(ABC):
         system: str,
         messages: list[dict],
         max_tokens: int = 2048,
-    ) -> str:
-        """Send a chat request and return the assistant's text response."""
+        tag: str = "",
+    ) -> ChatResponse:
+        """Send a chat request and return a ChatResponse with text and token counts."""
         ...

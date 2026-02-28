@@ -1,7 +1,7 @@
 """MockLLM — deterministic fake responses for DEV mode (no real API calls)."""
 from __future__ import annotations
 
-from app.llm.base import LLMBase
+from app.llm.base import LLMBase, ChatResponse
 
 
 _TOPIC_GRADE_JSON = """{
@@ -53,26 +53,29 @@ class MockLLM(LLMBase):
         system: str,
         messages: list[dict],
         max_tokens: int = 2048,
-    ) -> str:
+        tag: str = "",
+    ) -> ChatResponse:
         last = messages[-1]["content"] if messages else ""
 
         # Grader: JSON response
         if "score_breakdown" in last or "严格JSON" in last:
             if "recognize_pattern" in last:
-                return _ALGO_GRADE_JSON
-            return _TOPIC_GRADE_JSON
-
+                text = _ALGO_GRADE_JSON
+            else:
+                text = _TOPIC_GRADE_JSON
         # Tutor: generate recall questions
-        if "生成2-3道" in last or "recall" in last.lower():
-            return _TUTOR_QUESTIONS
-
+        elif "生成2-3道" in last or "recall" in last.lower():
+            text = _TUTOR_QUESTIONS
         # Interviewer: present problem
-        if "以面试官" in last or "面试官身份" in last:
-            return _INTERVIEWER_PRESENT
-
+        elif "以面试官" in last or "面试官身份" in last:
+            text = _INTERVIEWER_PRESENT
         # Figures: diagram generation (small max_tokens or diagram-related system)
-        if max_tokens <= 512 or "图表" in system or "图表" in last:
-            return _FIGURE_REPLACEMENT
+        elif max_tokens <= 512 or "图表" in system or "图表" in last:
+            text = _FIGURE_REPLACEMENT
+        else:
+            # Default conversational reply
+            text = "[Mock] 这是 DEV 模式下的模拟回复。切换到 PROD 模式以使用真实 Claude API。"
 
-        # Default conversational reply
-        return "[Mock] 这是 DEV 模式下的模拟回复。切换到 PROD 模式以使用真实 Claude API。"
+        input_tokens = sum(len(m["content"]) for m in messages) // 4
+        output_tokens = len(text) // 4
+        return ChatResponse(text=text, input_tokens=input_tokens, output_tokens=output_tokens)

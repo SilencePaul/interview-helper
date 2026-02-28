@@ -78,12 +78,14 @@ def generate_replacement(context: str, placeholder: str, llm: LLMBase) -> str:
         f"周围上下文：\n{context}\n\n"
         "请生成一个合适的图表来替代这个缺失的图片。"
     )
-    return llm.chat(
+    r = llm.chat(
         MODEL_FIGURES,
         system,
         [{"role": "user", "content": user}],
         max_tokens=512,
-    ).strip()
+        tag="figures.generate",
+    )
+    return r.text.strip()
 
 
 def preview_diff(path: Path, line_num: int, old: str, new: str) -> str:

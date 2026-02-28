@@ -1,11 +1,11 @@
 """LLM factory — selects implementation based on APP_ENV."""
 from __future__ import annotations
 
-from app.llm.base import LLMBase
+from app.llm.logging_llm import LoggingLLM
 
 
-def get_llm() -> LLMBase:
-    """Return MockLLM in dev mode, ClaudeLLM in prod mode.
+def get_llm() -> LoggingLLM:
+    """Return a LoggingLLM-wrapped MockLLM (dev) or ClaudeLLM (prod).
 
     Fail fast if APP_ENV=prod and ANTHROPIC_API_KEY is missing.
     """
@@ -13,7 +13,7 @@ def get_llm() -> LLMBase:
 
     if APP_ENV == "dev":
         from app.llm.mock_llm import MockLLM
-        return MockLLM()
+        return LoggingLLM(MockLLM())
 
     # prod mode
     if not ANTHROPIC_API_KEY:
@@ -22,4 +22,4 @@ def get_llm() -> LLMBase:
             "Set it in your .env file or export it as an environment variable."
         )
     from app.llm.claude_llm import ClaudeLLM
-    return ClaudeLLM(api_key=ANTHROPIC_API_KEY)
+    return LoggingLLM(ClaudeLLM(api_key=ANTHROPIC_API_KEY))

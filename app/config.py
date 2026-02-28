@@ -16,6 +16,9 @@ MODEL_INTERVIEWER: str = os.environ.get("MODEL_INTERVIEWER", "claude-sonnet-4-6"
 MODEL_GRADER: str = os.environ.get("MODEL_GRADER", "claude-sonnet-4-6")
 MODEL_FIGURES: str = os.environ.get("MODEL_FIGURES", "claude-haiku-4-5-20251001")
 
+LOG_LEVEL: str = os.environ.get("LOG_LEVEL", "INFO")
+LOG_FILE: str = os.environ.get("LOG_FILE", "")
+
 NOTES_DIR: Path = _root / "notes"
 PROMPTS_DIR: Path = _root / "prompts"
 PATTERNS_DIR: Path = _root / "patterns"

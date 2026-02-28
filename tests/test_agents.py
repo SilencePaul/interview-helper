@@ -4,16 +4,20 @@ import pytest
 from unittest.mock import MagicMock
 
 from app.agents import TutorAgent, InterviewerAgent, GraderAgent, GradeResult
-from app.llm.base import LLMBase
+from app.llm.base import LLMBase, ChatResponse
 from app.schemas import Problem
 
 
 # ── helpers ─────────────────────────────────────────────────────────────────────
 
+def _make_response(text: str) -> ChatResponse:
+    return ChatResponse(text=text, input_tokens=len(text) // 4, output_tokens=len(text) // 4)
+
+
 def _mock_llm(return_value: str = "") -> LLMBase:
-    """Return a MagicMock LLM with a preset chat() return value."""
+    """Return a MagicMock LLM whose chat() returns a ChatResponse."""
     llm = MagicMock(spec=LLMBase)
-    llm.chat.return_value = return_value
+    llm.chat.return_value = _make_response(return_value)
     return llm
 
 
@@ -88,7 +92,7 @@ class TestTutorAgent:
         agent = TutorAgent(llm)
         agent.start_session("outline", "content")
 
-        llm.chat.return_value = "Good point! Consider also..."
+        llm.chat.return_value = _make_response("Good point! Consider also...")
         agent.answer("I think it's B+tree structure.")
 
         transcript = agent.get_transcript()
@@ -101,7 +105,7 @@ class TestTutorAgent:
         llm = _mock_llm("1. Q?")
         agent = TutorAgent(llm)
         agent.start_session("o", "c")
-        llm.chat.return_value = "Tutor reply text"
+        llm.chat.return_value = _make_response("Tutor reply text")
         result = agent.answer("my answer")
         assert result == "Tutor reply text"
 

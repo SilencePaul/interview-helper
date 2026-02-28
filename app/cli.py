@@ -19,6 +19,7 @@ from app.config import MISTAKES_DIR, PROBLEMS_DIR
 from app import db, srs, notes, note_chunker, figures as fig_mod
 from app.agents import TutorAgent, InterviewerAgent, GraderAgent
 from app.llm.factory import get_llm
+from app.llm.logging_llm import LoggingLLM
 from app.schemas import Problem
 
 app = typer.Typer(
@@ -125,6 +126,41 @@ def _collect_mistake_info() -> tuple[str, str, list[str]]:
             break
         self_questions.append(q)
     return first_reaction, trigger_words, self_questions
+
+
+# ---------- token summary ----------
+
+def _print_token_summary(llm: LoggingLLM) -> None:
+    """Print a Rich table summarising all LLM calls made during the session."""
+    calls = llm.session_summary()
+    if not calls:
+        return
+
+    table = Table(title="LLM Call Summary", show_header=True, header_style="bold magenta")
+    table.add_column("Tag", style="cyan")
+    table.add_column("Model", style="white")
+    table.add_column("Input tok", justify="right", style="green")
+    table.add_column("Output tok", justify="right", style="yellow")
+    table.add_column("Latency", justify="right", style="dim")
+
+    for call in calls:
+        table.add_row(
+            call["tag"] or "—",
+            call["model"],
+            str(call["input_tokens"]),
+            str(call["output_tokens"]),
+            f"{call['latency_s']:.3f}s",
+        )
+
+    total_in, total_out = llm.total_tokens()
+    table.add_row(
+        "[bold]TOTAL[/bold]",
+        "[bold]—[/bold]",
+        f"[bold]{total_in}[/bold]",
+        f"[bold]{total_out}[/bold]",
+        "[bold]—[/bold]",
+    )
+    console.print(table)
 
 
 # ---------- review t <topic> ----------
@@ -258,6 +294,7 @@ def review_topic(
                       self_questions or grade.next_drills,
                       next_date.isoformat())
     console.print(f"[dim]错题记录已保存: {log_path}[/dim]")
+    _print_token_summary(llm)
 
 
 # ---------- mock algo ----------
@@ -366,6 +403,7 @@ def mock_algo(
                       self_questions or grade.next_drills,
                       next_date.isoformat())
     console.print(f"[dim]错题记录已保存: {log_path}[/dim]")
+    _print_token_summary(llm)
 
 
 # ---------- stats ----------
@@ -480,3 +518,4 @@ def fix_figures(
             console.print("[green]已应用[/green]")
         else:
             console.print("[dim]已跳过[/dim]")
+    _print_token_summary(llm)
