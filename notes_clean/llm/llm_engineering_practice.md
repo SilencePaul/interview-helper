@@ -63,6 +63,25 @@ LLMLingua Prompt 压缩：
 > **面试30秒回答：**
 > LLM 成本 = 输入 Token × 价格 + 输出 Token × 价格，降本三板斧：一是 Prompt 压缩，LLMLingua 删冗余 Token，降 30-50%；二是前缀缓存，固定系统 Prompt 前缀命中缓存后只收 10% 费用；三是简单任务路由到便宜模型（Haiku/GPT-4o-mini），比 Opus/GPT-4o 便宜 10-50 倍。三者叠加可降本 70%+。
 
+🎯 **Interview Triggers:**
+- Prefix Caching 和 Prompt Compression 各自解决什么问题，为什么要同时用？（WHY）
+- 批量请求（Batch API）省了 50% 成本，代价是什么？（TRADEOFF）
+- 开启了前缀缓存但成本没降，可能是什么原因？（FAILURE）
+
+🧠 **Question Type:** performance optimization · comparison/tradeoff · debugging/failure analysis
+
+🔥 **Follow-up Paths:**
+- 前缀缓存失效 → Prompt 结构调整（固定内容前置）
+- 模型路由 → 按任务复杂度选模型
+- Batch API → 离线评估场景
+
+🛠 **Engineering Hooks:**
+- 监控每次请求的 `cache_read_input_tokens` vs `cache_creation_input_tokens`（Anthropic API 返回）
+- 前缀缓存命中率目标 >80%（命中率低说明 system prompt 频繁变动）
+- 按功能模块拆分成本（用 `metadata` 标签）
+- Batch API 用于评估/数据处理，不用于交互式功能
+- 每周出一张成本分解报告（按模型/功能/用户分层）
+
 ---
 
 ## 流式输出（Streaming）
@@ -118,6 +137,25 @@ Nginx 注意事项：
 
 > **面试30秒回答：**
 > 流式输出用 SSE 协议实现：后端设置 `Content-Type: text/event-stream`，每生成一个 Token 就 `data: {...}\n\n` 推送给前端，前端用 EventSource 接收。关键指标是 TTFT（首 Token 时延），影响用户等待感知。最常见坑是 Nginx 缓冲：默认会缓存代理响应导致 SSE 无法实时到达，必须设置 `proxy_buffering off` 或响应头 `X-Accel-Buffering: no`。
+
+🎯 **Interview Triggers:**
+- SSE 和 WebSocket 在 LLM 流式输出场景有什么本质区别，为什么 LLM 用 SSE？（WHY）
+- 流式输出和非流式输出在后端架构上有哪些差异和复杂度增加？（TRADEOFF）
+- 用户看到流式输出卡住了（TTFT 很高），应该从哪里排查？（FAILURE）
+
+🧠 **Question Type:** principle explanation · system design · debugging/failure analysis
+
+🔥 **Follow-up Paths:**
+- TTFT 高 → Prefill 阶段优化（压缩输入）
+- Nginx 缓冲 → 反向代理配置
+- 结构化流式输出 → 部分 JSON 解析
+
+🛠 **Engineering Hooks:**
+- Nginx 配置：`proxy_buffering off; proxy_read_timeout 300s;`（或响应头 `X-Accel-Buffering: no`）
+- 监控 TTFT P50/P95（目标 <2s），超出时检查 input token 数量
+- 客户端设置 EventSource 重连：`retry: 3000\n`（断线 3s 后重连）
+- 流式结束标记：`data: [DONE]\n\n`，前端收到后关闭连接
+- 长流式请求设置服务端心跳（每 15s 发送 `: keepalive\n\n`）防止代理超时断开
 
 ---
 
@@ -177,6 +215,25 @@ async def rate_limited_call(prompt):
 
 > **面试30秒回答：**
 > 限流重试标准方案：指数退避 + 随机 Jitter，公式 `min(cap, base×2^n) + random(0,1)`。只重试 429（Rate Limit）和 5xx（服务器错误），400/401 是客户端错误，重试不会修复。加 Jitter 是为了防止惊群效应——多个客户端同时被限流后同时重试会导致更大的冲击。用 tenacity 库加一个 `@retry` 装饰器就能实现，再用 `asyncio.Semaphore` 控制最大并发数，防止自己打爆 Rate Limit。
+
+🎯 **Interview Triggers:**
+- 指数退避为什么要加随机 Jitter，不加会有什么后果？（WHY）
+- 重试和快速失败在不同场景下如何选择？（TRADEOFF）
+- 重试逻辑写错了（如对 400 重试）会有什么危害？（FAILURE）
+
+🧠 **Question Type:** principle explanation · system design · debugging/failure analysis
+
+🔥 **Follow-up Paths:**
+- 惊群效应 → Jitter 的数学原理
+- 并发控制 → asyncio.Semaphore 和令牌桶
+- 限流监控 → 429 错误率趋势
+
+🛠 **Engineering Hooks:**
+- tenacity 配置：`wait=wait_exponential(min=1, max=60) + wait_random(0,1)`
+- 最大重试次数：5 次（超限记录 error 并返回降级）
+- 并发限制：`asyncio.Semaphore(10)` 防止自己触发限流
+- 监控 429 错误率（目标 <1%），持续高位说明需要申请提升 Rate Limit
+- 不同 API Key 轮换（LiteLLM load balancing）实际扩大有效 Rate Limit
 
 ---
 
@@ -242,6 +299,25 @@ LangFuse：
 
 > **面试30秒回答：**
 > LLM 可观测性三支柱：Trace 记完整调用链路（每个步骤的输入/输出/Token/耗时），Metrics 聚合监控健康（TTFT p95、成本/会话、错误率），Logs 结构化事件日志带 trace_id 串联。工具上 LangSmith 最成熟（@traceable 装饰器自动追踪），LangFuse 是开源自部署替代。生产排查流程：trace_id → 找调用链 → 定位异常 span → 对比输入差异。
+
+🎯 **Interview Triggers:**
+- LLM 应用的可观测性和传统服务监控有什么本质区别？（WHY）
+- LangSmith 和自建日志系统相比各有什么优劣？（TRADEOFF）
+- 线上 LLM 应用出了问题但没有 trace，你怎么排查？（FAILURE）
+
+🧠 **Question Type:** system design · comparison/tradeoff · debugging/failure analysis
+
+🔥 **Follow-up Paths:**
+- Trace 设计 → trace_id 全链路贯穿
+- 成本监控 → 按 token 拆分到功能模块
+- 评估集成 → LangSmith dataset + eval
+
+🛠 **Engineering Hooks:**
+- 每次 LLM 调用必须记录：`trace_id, model, input_tokens, output_tokens, latency_ms, cost_usd`
+- LangSmith `@traceable` 自动捕获所有嵌套调用
+- 关键告警阈值：TTFT P95 > 5s、error_rate > 1%、cost/session > 预算 120%
+- Grafana Dashboard：TTFT 趋势、Token 消耗、错误率分布
+- PII 过滤：日志中 mask 所有用户输入中的个人信息
 
 ---
 
@@ -309,6 +385,25 @@ Prompt Injection 防御：
 > **面试30秒回答：**
 > PII 处理管道四步：检测（Presidio/正则识别姓名/手机/身份证等）→ 替换为占位符（保留本地映射表）→ 调用第三方 LLM（PII 不出境）→ 还原（如有必要反向映射）。内容安全双向拦截：输入用 OpenAI Moderation API 或 Llama Guard 过滤有害内容，输出同样过滤。关键原则：原始 PII 绝不写入日志或 Trace，只记录匿名化版本。
 
+🎯 **Interview Triggers:**
+- 为什么不能直接把用户原始输入发给第三方 LLM API？（WHY）
+- Presidio 自动检测和正则规则在 PII 检测上各有什么局限？（TRADEOFF）
+- PII 匿名化管道出错（漏检）会有什么合规后果？（FAILURE）
+
+🧠 **Question Type:** system design · comparison/tradeoff · debugging/failure analysis
+
+🔥 **Follow-up Paths:**
+- PII 漏检 → 多层防御（规则 + 模型 + 人工审计）
+- 内容安全 → 输入/输出双向过滤
+- 合规 → GDPR/CCPA 对 PII 的处理要求
+
+🛠 **Engineering Hooks:**
+- Presidio 识别率：常见实体（姓名/电话/邮箱）>95%，罕见实体（自定义）需补充规则
+- 自定义识别器：`PatternRecognizer` 添加中文身份证/手机号正则
+- 匿名化日志：只存 `<PERSON>` 占位符版本，绝不存原始 PII
+- 每月抽样 100 条检测漏检率
+- 内容安全误报率监控（过度拦截影响用户体验，目标 <0.1%）
+
 ---
 
 ## Prompt 版本管理与 A/B 测试
@@ -362,6 +457,25 @@ A/B 测试指标选择：
 
 > **面试30秒回答：**
 > Prompt 版本管理：每条 Prompt 存 hash + 版本号，通过 Feature Flag（环境变量）切换，支持秒级回滚。A/B 测试流程：固定 eval set（≥500 条）分别跑 v1/v2，收集任务完成率/用户评分/幻觉率等业务指标，p-value < 0.05 才算显著。生产部署走金丝雀（5% → 50% → 100%），发现问题立刻回滚。核心原则：不靠直觉，靠数据和统计显著性。
+
+🎯 **Interview Triggers:**
+- 为什么 Prompt 也需要像代码一样版本管理，直接改不行吗？（WHY）
+- A/B 测试 Prompt 时，样本量需要多大才有统计意义？（TRADEOFF）
+- 新 Prompt 在 eval set 上效果好，但上线后用户满意度下降，为什么？（FAILURE）
+
+🧠 **Question Type:** system design · comparison/tradeoff · debugging/failure analysis
+
+🔥 **Follow-up Paths:**
+- Prompt 回归测试 → eval CI 集成
+- Feature Flag → 秒级回滚机制
+- 统计显著性 → p-value 计算和样本量估算
+
+🛠 **Engineering Hooks:**
+- Prompt hash 存储：`hashlib.sha256(prompt.encode()).hexdigest()[:8]` 作为版本标识
+- eval set 最小样本：500 条，统计显著性 p-value < 0.05
+- 金丝雀比例：5% → 观察 24h → 25% → 50% → 100%（每阶段看核心指标）
+- 回滚 SLA：Feature Flag 切换 <1min 生效
+- eval CI：每次 PR 合并后自动跑 eval，score 下降 >5% 则阻断合并
 
 ---
 
@@ -430,6 +544,25 @@ async def call_with_fallback(prompt: str) -> str:
 > **面试30秒回答：**
 > 生产部署三件套：超时（30s 硬上限，超时立即降级不等待）、熔断器（连续 N 次失败 → 断路 → 冷却 → 半开试探，防止故障扩散）、降级（主模型 → 备用模型 → 本地规则 → 静态兜底，层层保底）。关键原则：LLM API 是外部依赖，必须视为不可靠，任何调用路径都要有 Plan B。降级一定要对用户有明确响应，禁止沉默失败。
 
+🎯 **Interview Triggers:**
+- LLM 应用为什么必须设置超时，不设会有什么后果？（WHY）
+- 熔断器的开启阈值设太低和设太高各有什么问题？（TRADEOFF）
+- 主模型和备用模型都挂了，用户侧应该看到什么？（FAILURE）
+
+🧠 **Question Type:** system design · comparison/tradeoff · debugging/failure analysis
+
+🔥 **Follow-up Paths:**
+- 熔断器实现 → 状态机设计（Closed/Open/Half-Open）
+- 降级策略 → 多级 fallback 链路
+- 健康检查 → 负载均衡器集成
+
+🛠 **Engineering Hooks:**
+- 超时配置：非流式 30s，流式首 Token 超时 5s
+- 熔断器阈值：连续 5 次失败触发断路，冷却 60s
+- 备用模型选型：主模型 Opus → 备用 Sonnet → 本地规则（延迟 vs 质量梯度）
+- 健康检查端点：`GET /health`，>2s 响应则告警
+- 监控 fallback 触发频率（目标 <1%，持续高位说明主模型有问题）
+
 ---
 
 ## Model Selection & Routing Strategy
@@ -489,6 +622,25 @@ LiteLLM（统一代理层）：
 
 > **面试30秒回答：**
 > Model Routing 核心思路：按任务复杂度分层，简单任务（分类/提取）走 Haiku/GPT-4o-mini（$0.15/1M），中等任务走 Sonnet/GPT-4o（$3/1M），复杂推理才用 Opus/o1（$15-75/1M）。四种路由策略：规则路由（最简单，关键词分流）、分类器路由（BERT 预测复杂度）、RouteLLM（LMSYS 开源，训练路由模型，GPT-4 调用降至 20% 质量几乎不变）、Cascade（先弱后强，自适应升级）。统一调用层用 LiteLLM，兼容 OpenAI SDK，一行切换模型。
+
+🎯 **Interview Triggers:**
+- 什么时候应该用模型路由而不是统一用最强模型？（WHY）
+- 规则路由和分类器路由在准确性和工程复杂度上如何权衡？（TRADEOFF）
+- 路由把复杂任务误分到便宜模型导致质量下降，怎么检测和修复？（FAILURE）
+
+🧠 **Question Type:** comparison/tradeoff · system design · performance optimization
+
+🔥 **Follow-up Paths:**
+- 路由分类器 → BERT fine-tuned on complexity labels
+- RouteLLM → LMSYS 开源，基于 Arena 偏好数据训练
+- 成本收益分析 → 路由收益 vs 分类器维护成本
+
+🛠 **Engineering Hooks:**
+- 路由规则起步：关键词/长度分流，10 行代码实现，先跑数据再上分类器
+- 质量监控：路由后对各模型输出分别跑 LLM-as-Judge，检测路由误分
+- 路由准确率目标 >95%（误分到便宜模型的召回率）
+- LiteLLM 配置：`router_strategy="least-busy"` + fallback 列表
+- 每月统计路由分布和成本节省，验证路由策略是否值得维护
 
 ---
 
