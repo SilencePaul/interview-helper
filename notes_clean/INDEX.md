@@ -1,6 +1,6 @@
 # 面试八股文索引
 
-> 共 34 篇，按专题分类，每篇均含 速览 / 核心结论（可背）/ 面试高频考点汇总。
+> 共 41 篇，按专题分类，每篇均含 速览 / 核心结论（可背）/ 面试高频考点汇总。
 
 ---
 
@@ -73,6 +73,20 @@
 
 ---
 
+## LLM 大模型（7篇）
+
+| 笔记 | 核心主题 |
+|---|---|
+| [LLM基础](./llm/LLM基础.md) | Transformer架构、Self-Attention(O(n²))、Tokenization(BPE/WordPiece)、预训练/SFT/RLHF |
+| [提示词工程](./llm/提示词工程.md) | Zero-shot/Few-shot/Role Prompting、CoT、Self-Consistency、ReAct、System Prompt设计 |
+| [RAG检索增强](./llm/RAG检索增强.md) | RAG三代演进(Naive→Advanced→Modular)、向量检索、查询改写、重排序、RAGAS评估 |
+| [智能体](./llm/智能体.md) | Agent架构(LLM+工具+记忆+规划)、ReAct框架、Function Calling、多Agent协作 |
+| [推理系统](./llm/推理系统.md) | 量化(GPTQ/AWQ INT4/INT8)、Continuous Batching、PagedAttention、KV Cache、vLLM |
+| [LLM工程实践](./llm/LLM工程实践.md) | Token成本控制、前缀缓存、Batch API、流式输出(SSE)、TTFT/TPOT延迟指标 |
+| [评估](./llm/评估.md) | LLM-as-Judge、Pairwise vs Pointwise、位置/冗长/自我增强偏差、自动化评估流程 |
+
+---
+
 ## 快速复习路线
 
 **一轮（掌握核心）：** HTML → CSS → Javascript → 计算机网络/传输协议 → 数据库/索引 → 数据库/事务 → 操作系统/线程与进程
@@ -80,3 +94,5 @@
 **二轮（深入扩展）：** VUE → React → 浏览器与网络 → 数据库/锁 → 数据库/Redis → 操作系统/存储系统 → 设计模式全部
 
 **三轮（查漏补缺）：** 根据面试反馈，重点复习高频考点汇总表中的薄弱项
+
+**LLM 专题：** LLM基础 → 提示词工程 → RAG检索增强 → 智能体 → 推理系统 → LLM工程实践 → 评估
