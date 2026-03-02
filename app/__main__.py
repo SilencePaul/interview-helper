@@ -38,7 +38,9 @@ def main() -> None:
         _cmd_build_index()
     elif command == "interview":
         mode = "prod" if "--prod" in args else "dev"
-        _cmd_interview(mode)
+        module = _get_flag(args, "--module")
+        file   = _get_flag(args, "--file")
+        _cmd_interview(mode, module, file)
     else:
         print(f"Unknown command: {command!r}")
         _usage()
@@ -51,20 +53,30 @@ def _cmd_build_index() -> None:
     print(f"Indexed {count} concepts → {_INDEX_PATH}")
 
 
-def _cmd_interview(mode: str) -> None:
+def _get_flag(args: list[str], flag: str) -> str | None:
+    """Return the value after `flag` in args, or None if absent/missing."""
+    try:
+        return args[args.index(flag) + 1]
+    except (ValueError, IndexError):
+        return None
+
+
+def _cmd_interview(mode: str, module: str | None, file: str | None) -> None:
     from interviewer.interviewer import InterviewerAgent
     from llm.factory import get_llm
 
     llm = get_llm(mode)
     agent = InterviewerAgent(llm=llm, notes_dir=_NOTES_DIR, index_path=_INDEX_PATH)
-    agent.run()
+    agent.run(module=module, file=file)
 
 
 def _usage() -> None:
     print("Usage:")
     print("  python -m app build-index")
-    print("  python -m app interview           # dev mode (MockLLM, offline)")
-    print("  python -m app interview --prod    # prod mode (reads LLM_PROVIDER from .env)")
+    print("  python -m app interview                        # random across all concepts")
+    print("  python -m app interview --module <category>   # restrict to one category")
+    print("  python -m app interview --file <filename.md>  # restrict to one file")
+    print("  python -m app interview --prod                # prod mode (reads .env)")
     print()
     print("Providers (set LLM_PROVIDER in .env):")
     print("  anthropic  — ANTHROPIC_API_KEY required")

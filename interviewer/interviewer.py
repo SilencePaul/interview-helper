@@ -5,6 +5,7 @@ import random
 import sys
 import warnings
 from dataclasses import dataclass
+from pathlib import Path
 
 from knowledge.indexer import ConceptEntry, load_index
 from knowledge.loader import (
@@ -100,14 +101,15 @@ class InterviewerAgent:
     # Core methods
     # ------------------------------------------------------------------
 
-    def pick_concept(self) -> Concept:
-        """Select a random concept from the cached index and load its block."""
-        if not self._index:
+    def pick_concept(self, pool: list[ConceptEntry] | None = None) -> Concept:
+        """Select a random concept from pool (or full index) and load its block."""
+        candidates = pool if pool is not None else self._index
+        if not candidates:
             raise RuntimeError(
                 "Concept index is empty. "
                 "Run `python -m app build-index` to populate it."
             )
-        entry = random.choice(self._index)
+        entry = random.choice(candidates)
         content = load_block(entry.file_path, entry.start_line, entry.end_line)
 
         # Apply same size guard as parse_concept_blocks
@@ -198,10 +200,32 @@ class InterviewerAgent:
     # CLI loop
     # ------------------------------------------------------------------
 
-    def run(self) -> None:
+    def run(
+        self,
+        module: str | None = None,
+        file: str | None = None,
+    ) -> None:
         print("\n=== Interviewer Agent v2 ===\n")
 
-        concept = self.pick_concept()
+        # Build filtered pool
+        pool = self._index
+        if module:
+            pool = [e for e in pool if e.category == module]
+            scope = module
+        elif file:
+            pool = [e for e in pool if Path(e.file_path).name == file]
+            scope = file
+        else:
+            scope = "Random"
+
+        print(f"Training scope: {scope}\n")
+
+        if not pool:
+            print(f"Error: no concepts found for scope {scope!r}.")
+            print("Check --module / --file value and ensure the index is up to date.")
+            return
+
+        concept = self.pick_concept(pool)
         print(f"Topic : [{concept.category}] {concept.title}\n")
 
         question = self.generate_question(concept)
