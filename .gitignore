@@ -1,23 +1,18 @@
 # Python
 __pycache__/
 *.py[cod]
-*.pyo
 .pytest_cache/
-*.egg-info/
-dist/
-build/
-.eggs/
+.venv/
 
 # Environment
 .env
-.python-version
 
-# Runtime data
-data/
-mistakes/
+# macOS
+.DS_Store
 
 # IDE
 .vscode/
 .idea/
-*.swp
-*.swo
+
+# Generated index (rebuild with: python -m app build-index)
+data/concepts_index.json
