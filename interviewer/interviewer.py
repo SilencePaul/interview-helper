@@ -55,6 +55,23 @@ Evaluate the answer. Respond with ONLY valid JSON — no markdown fences, no ext
 }}\
 """
 
+_FOLLOWUP_PROMPT = """\
+You are a technical interviewer. The candidate's first answer was incomplete (score < 6).
+
+## Concept: {title}
+## Original question: {question}
+## Candidate's answer: {user_answer}
+## Key points they missed:
+{missing_points}
+
+Generate ONE follow-up question in Chinese that:
+- Provides a gentle hint pointing toward the missing points
+- Narrows the scope to what they got wrong
+- Does NOT reveal the answer directly
+
+Return ONLY the follow-up question text. No explanation, no preamble.\
+"""
+
 
 # ---------------------------------------------------------------------------
 # Result dataclass
@@ -127,6 +144,23 @@ class InterviewerAgent:
         )
         return self.llm.complete(prompt).strip()
 
+    def generate_followup(
+        self,
+        concept: Concept,
+        question: str,
+        user_answer: str,
+        missing_points: list[str],
+    ) -> str:
+        """Generate a single follow-up question hinting at what was missed."""
+        bullets = "\n".join(f"- {p}" for p in missing_points) if missing_points else "- 回答缺少深度"
+        prompt = _FOLLOWUP_PROMPT.format(
+            title=concept.title,
+            question=question,
+            user_answer=user_answer,
+            missing_points=bullets,
+        )
+        return self.llm.complete(prompt).strip()
+
     def evaluate_answer(
         self,
         question: str,
@@ -165,7 +199,7 @@ class InterviewerAgent:
     # ------------------------------------------------------------------
 
     def run(self) -> None:
-        print("\n=== Interviewer Agent v1 ===\n")
+        print("\n=== Interviewer Agent v2 ===\n")
 
         concept = self.pick_concept()
         print(f"Topic : [{concept.category}] {concept.title}\n")
@@ -180,7 +214,25 @@ class InterviewerAgent:
 
         print("\nEvaluating...\n")
         result = self.evaluate_answer(question, user_answer, concept)
-        _print_result(result)
+
+        if result.score >= 6:
+            _print_result(result)
+            return
+
+        # Round 1 score < 6 — one follow-up round
+        print(f"Score: {result.score}/10 — Answer needs more depth. Here's a follow-up:\n")
+        followup = self.generate_followup(concept, question, user_answer, result.missing_points)
+        print(f"Follow-up: {followup}\n")
+
+        second_answer = input("Your answer: ").strip()
+        if not second_answer:
+            print("No answer provided.")
+            _print_result(result)
+            return
+
+        print("\nEvaluating...\n")
+        final_result = self.evaluate_answer(followup, second_answer, concept)
+        _print_result(final_result)
 
 
 # ---------------------------------------------------------------------------
