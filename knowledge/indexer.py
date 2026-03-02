@@ -7,6 +7,9 @@ from pathlib import Path
 
 from knowledge.loader import parse_concept_blocks
 
+# Structural meta-sections present in every note — not interview concepts.
+_SKIP_TITLES: frozenset[str] = frozenset({"速览", "面试高频考点汇总"})
+
 
 @dataclass
 class ConceptEntry:
@@ -44,6 +47,8 @@ def build_index(notes_dir: str, output_path: str) -> int:
         category = md_file.parent.name
         concepts = parse_concept_blocks(str(md_file), category)
         for concept in concepts:
+            if concept.title in _SKIP_TITLES:
+                continue
             key = (concept.file_path, concept.start_line, concept.title)
             if key in seen:
                 continue
