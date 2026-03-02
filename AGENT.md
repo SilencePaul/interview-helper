@@ -1,6 +1,6 @@
-# Interviewer Agent v1
+# Interviewer Agent v2
 
-A CLI-based technical interview practice tool that draws from Chinese 八股文 knowledge notes, asks targeted questions, and evaluates your answers using an LLM.
+A CLI-based technical interview practice tool that draws from Chinese 八股文 knowledge notes, asks targeted questions, evaluates your answers, and guides you with follow-up questions when needed.
 
 ---
 
@@ -27,7 +27,7 @@ ANTHROPIC_API_KEY=sk-ant-...    # your real key
 ```bash
 python -m app build-index
 ```
-Expected output: `Indexed 338 concepts → data/concepts_index.json`
+Expected output: `Indexed 256 concepts → data/concepts_index.json`
 
 ---
 
@@ -43,21 +43,33 @@ python -m app interview
 python -m app interview --prod
 ```
 
+**Restrict to a category:**
+```bash
+python -m app interview --module 数据库
+```
+
+**Restrict to a single file:**
+```bash
+python -m app interview --file 索引.md
+```
+
+Flags can be combined:
+```bash
+python -m app interview --prod --module 计算机网络
+```
+
 ---
 
 ## What the Agent Does
 
-Each session runs one full interview cycle:
+Each session runs one interview cycle (max 2 rounds):
 
-1. **Picks a random concept** from the index (338 concepts across 6 categories)
+1. **Picks a random concept** from the index (256 concepts across 6 categories)
 2. **Generates one interview question** based on a trigger from the notes
 3. **Waits for your answer** via CLI input
 4. **Evaluates your answer** using the LLM against the reference content
-5. **Prints a structured result:**
-   - Score (0–10)
-   - Strengths — what you got right
-   - Missing points — what you left out
-   - Ideal answer — a concise 30-second spoken answer
+5. **If score ≥ 6** — prints full result and finishes
+6. **If score < 6** — generates one follow-up question that hints at what you missed (without revealing the answer), accepts a second answer, then prints the final evaluation
 
 ---
 
@@ -84,12 +96,12 @@ Notes live in `notes_clean_v2/` across 6 categories:
 
 | Category | Concepts |
 |---|---|
-| 数据库 (Database) | 69 |
-| llm | 67 |
-| 前端 (Frontend) | 54 |
-| 操作系统 (OS) | 52 |
-| 计算机网络 (Networking) | 49 |
-| 设计模式 (Design Patterns) | 47 |
+| 数据库 (Database) | 53 |
+| llm | 49 |
+| 前端 (Frontend) | 42 |
+| 操作系统 (OS) | 40 |
+| 计算机网络 (Networking) | 38 |
+| 设计模式 (Design Patterns) | 34 |
 
 Each concept block contains interview triggers, question types, follow-up paths, and engineering hooks used to generate and evaluate questions.
 
@@ -112,7 +124,7 @@ app/                    CLI entry point (python -m app ...)
 interviewer/            InterviewerAgent logic
 knowledge/              Concept block parser + index builder/loader
 llm/                    LLM abstraction (MockLLM, ClaudeLLM, OpenAILLM)
-notes_clean_v2/         Knowledge base (338 concepts, 41 markdown files)
+notes_clean_v2/         Knowledge base (256 concepts, 41 markdown files)
 data/                   Generated index (gitignored, rebuilt by build-index)
 tests/                  pytest test suite
 .env                    LLM config and API keys (gitignored)
