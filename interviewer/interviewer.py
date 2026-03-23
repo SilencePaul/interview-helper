@@ -301,6 +301,27 @@ def _pick_followup_dimension(dimensions: dict[str, int]) -> str:
     return ratios[0][2]
 
 
+def _normalize_evaluation(dimensions: dict[str, int], missing_points: list[str]) -> tuple[dict[str, int], int]:
+    normalized = {}
+    for key, max_value in _DIMENSION_MAX.items():
+        value = int(dimensions.get(key, 0))
+        normalized[key] = max(0, min(max_value, value))
+
+    has_missing = any(str(item).strip() for item in missing_points)
+    score = sum(normalized.values())
+    if has_missing and score >= 10:
+        if normalized["completeness"] > 0:
+            normalized["completeness"] -= 1
+        elif normalized["accuracy"] > 0:
+            normalized["accuracy"] -= 1
+        elif normalized["practicality"] > 0:
+            normalized["practicality"] -= 1
+        elif normalized["clarity"] > 0:
+            normalized["clarity"] -= 1
+        score = sum(normalized.values())
+    return normalized, score
+
+
 def _parse_evaluation(raw: str) -> EvaluationResult | None:
     try:
         text = raw.strip()
@@ -310,8 +331,10 @@ def _parse_evaluation(raw: str) -> EvaluationResult | None:
         data = json.loads(text)
         dimensions = dict(_DEFAULT_DIMENSIONS)
         dimensions.update({k: int(v) for k, v in data.get("dimensions", {}).items() if k in _DEFAULT_DIMENSIONS})
-        score = sum(dimensions.values())
-        return EvaluationResult(score, dimensions, list(data["strengths"]), list(data["missing_points"]), str(data["ideal_answer"]))
+        strengths = [str(x) for x in data["strengths"]]
+        missing_points = [str(x) for x in data["missing_points"]]
+        dimensions, score = _normalize_evaluation(dimensions, missing_points)
+        return EvaluationResult(score, dimensions, strengths, missing_points, str(data["ideal_answer"]))
     except (json.JSONDecodeError, KeyError, TypeError, ValueError):
         return None
 
