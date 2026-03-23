@@ -94,6 +94,24 @@ def main() -> None:
             latest = "--latest" in args
             as_json = "--json" in args
             _cmd_summary(limit=limit, latest=latest, as_json=as_json)
+        elif command == "study-init":
+            base_dir = _get_flag(args, "--dir") or "study"
+            _cmd_study_init(base_dir)
+        elif command == "study-import":
+            source = _get_flag(args, "--file")
+            if not source:
+                raise ConfigError("study-import requires --file <path>")
+            category = _get_flag(args, "--category") or "未分类"
+            base_dir = _get_flag(args, "--dir") or "study"
+            _cmd_study_import(source, category=category, base_dir=base_dir)
+        elif command == "study-import-dir":
+            source_dir = _get_flag(args, "--dir")
+            if not source_dir:
+                raise ConfigError("study-import-dir requires --dir <path>")
+            category = _get_flag(args, "--category") or "未分类"
+            base_dir = _get_flag(args, "--out") or "study"
+            recursive = "--no-recursive" not in args
+            _cmd_study_import_dir(source_dir, category=category, base_dir=base_dir, recursive=recursive)
         elif command == "interview":
             mode = "prod" if "--prod" in args else "dev"
             module = _get_flag(args, "--module")
@@ -409,6 +427,38 @@ def _print_history_full(session: dict) -> None:
         print()
 
 
+def _cmd_study_init(base_dir: str = "study") -> None:
+    from study_ingest.importer import setup_workspace
+    paths = setup_workspace(base_dir)
+    print("Study workspace initialized:")
+    for key, value in paths.items():
+        print(f"  {key}: {value}")
+
+
+def _cmd_study_import(source: str, *, category: str = "未分类", base_dir: str = "study") -> None:
+    from study_ingest.importer import import_file
+    result = import_file(source, category=category, base_dir=base_dir)
+    print("Study import completed:")
+    for key, value in result.items():
+        print(f"  {key}: {value}")
+
+
+def _cmd_study_import_dir(source_dir: str, *, category: str = "未分类", base_dir: str = "study", recursive: bool = True) -> None:
+    from study_ingest.importer import import_dir
+    result = import_dir(source_dir, category=category, base_dir=base_dir, recursive=recursive)
+    print("Study batch import completed:")
+    print(f"  source_dir: {result['source_dir']}")
+    print(f"  category: {result['category']}")
+    print(f"  recursive: {result['recursive']}")
+    print(f"  total_found: {result['total_found']}")
+    print(f"  imported_count: {result['imported_count']}")
+    print(f"  failed_count: {result['failed_count']}")
+    if result['failed']:
+        print("  failed:")
+        for item in result['failed']:
+            print(f"    - {item['file']}: {item['error']}")
+
+
 def _cmd_interview(mode: str, module: str | None, file: str | None, review_wrong: bool = False, no_followup: bool = False, count: int = 1) -> None:
     from interviewer.interviewer import InterviewerAgent
     from llm.factory import get_llm
@@ -443,6 +493,9 @@ def _usage() -> None:
     print("  python -m app stats [--limit N] [--module <category>] [--json]")
     print("  python -m app history [--limit N] [--latest] [--low-score] [--full] [--module <category>] [--json]")
     print("  python -m app summary [--limit N] [--latest] [--json]")
+    print("  python -m app study-init [--dir study]")
+    print("  python -m app study-import --file <path> [--category <name>] [--dir study]")
+    print("  python -m app study-import-dir --dir <path> [--category <name>] [--out study] [--no-recursive]")
     print("  python -m app interview [--count N] [--no-followup] # random across all concepts")
     print("  python -m app interview --review-wrong       # prioritize low-score history")
     print("  python -m app interview --module <category>  # restrict to one category")

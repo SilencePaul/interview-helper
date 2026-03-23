@@ -269,6 +269,57 @@ python -m app build-index
 ### 5. `Authentication failed`
 通常是 API key 错误、过期，或账号权限不足。
 
+## Markdown 资料整理（MVP）
+
+这个项目现在带了一个 markdown-first 的资料整理雏形。
+
+初始化目录：
+
+```bash
+python -m app study-init
+```
+
+导入一个 txt / md / html / docx / pdf 文件：
+
+```bash
+python -m app study-import --file ./sample.txt --category 数据库
+```
+
+批量导入一个目录：
+
+```bash
+python -m app study-import-dir --dir ./materials --category 数据库
+```
+
+会生成：
+- `study/uploads/` 原始资料副本
+- `study/parsed/` 提取后的文本
+- `study/notes/<分类>/` 复习用 Markdown
+- `study/sources/` 来源映射 JSON
+- `study/data/index.db` SQLite 索引
+
+当前会先做**自动主题切分**：
+- 一个源文件可以拆成多个主题 note
+- 规则切分先按标题 / 编号结构工作
+- AI 辅助 refinement 的接口已预留，后续可继续接入
+
+当前导入后的 Markdown 会自动补出这些复习结构：
+- 核心概念
+- 重点内容
+- 高频考点
+- 易错点
+- 面试题 / 自测题
+- 延伸阅读
+
+当前 MVP 先支持：
+- `.txt`
+- `.md`
+- `.html` / `.htm`
+- `.docx`
+- `.pdf`
+
+PDF 当前优先通过 `pypdf` 提取正文；如果抽不到文本，会自动回退到 OCR（`pdf2image + tesseract`），默认语言为 `chi_sim+eng`，适合中英文混合资料。
+
 ## Web UI（轻量版）
 
 启动一个零额外依赖的本地 Web UI：

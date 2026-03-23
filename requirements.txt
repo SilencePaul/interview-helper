@@ -1,3 +1,7 @@
 anthropic
 openai
+pdf2image
+pillow
+pypdf
+pytesseract
 pytest

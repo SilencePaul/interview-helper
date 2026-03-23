@@ -12,6 +12,13 @@ def test_html_contains_dashboard_title():
     assert "/api/session/answer" in web.HTML
     assert "需要追问" in web.HTML
     assert "Ideal Answer" in web.HTML
+    assert "Session Summary" in web.HTML
+    assert "await refreshDashboard(false)" in web.HTML
+    assert "第 2 轮（追问）" in web.HTML
+    assert "下一题" in web.HTML
+    assert "提交中..." in web.HTML
+    assert "维度分" in web.HTML
+    assert "score-grid" in web.HTML
 
 
 def test_history_item_extracts_summary():

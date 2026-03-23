@@ -46,6 +46,11 @@ HTML = """<!doctype html>
     .warn { color:#ffd166; }
     .err { color:#ff7b7b; }
     ul { margin: 8px 0 0 18px; }
+    .score-grid { display:grid; grid-template-columns: 130px 1fr 56px; gap:10px; align-items:center; margin-top:8px; }
+    .bar { height:10px; background:#0c1330; border-radius:999px; overflow:hidden; border:1px solid #23305f; }
+    .fill { height:100%; background:linear-gradient(90deg,#6ea8fe,#73e2a7); }
+    .meta-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:10px; margin-top:10px; }
+    .subcard { background:#0c1330; border:1px solid #23305f; border-radius:12px; padding:12px; }
   </style>
 </head>
 <body>
@@ -68,6 +73,10 @@ HTML = """<!doctype html>
         <div class="muted">会话</div>
         <div id="session-pill" class="pill">未开始</div>
       </div>
+      <div>
+        <div class="muted">当前状态</div>
+        <div id="qa-status" class="pill">待开始</div>
+      </div>
     </div>
     <div class="checks" style="margin-top:12px;">
       <label><input id="reviewWrong" type="checkbox" /> review-wrong</label>
@@ -75,11 +84,14 @@ HTML = """<!doctype html>
       <button onclick="startSession()">开始答题</button>
     </div>
     <div id="qa-box" style="margin-top:16px; display:none;">
-      <div class="muted">当前题目</div>
+      <div class="row"><div class="muted">当前题目</div><div id="topic-pill" class="pill">—</div></div>
       <pre id="question-box"></pre>
       <div class="muted">你的回答</div>
       <textarea id="answer-box" placeholder="在这里输入回答..."></textarea>
-      <div style="margin-top:12px;"><button onclick="submitAnswer()">提交答案</button></div>
+      <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
+        <button id="submit-btn" onclick="submitAnswer()">提交答案</button>
+        <button id="next-btn" onclick="startSession()" style="display:none;">下一题</button>
+      </div>
       <div class="muted" style="margin-top:12px;">结果</div>
       <div id="result-box" class="card" style="margin-top:8px;">等待作答…</div>
     </div>
@@ -101,7 +113,7 @@ HTML = """<!doctype html>
   <div class="grid" style="margin-top:16px; grid-template-columns: 1fr 1fr;">
     <div class="card">
       <div class="row"><h2>详情</h2><span class="pill">history / summary</span></div>
-      <pre id="detail-box">点击上面的 Topic 或 Summary 行查看详情。</pre>
+      <div id="detail-box">点击上面的 Topic 或 Summary 行查看详情。</div>
     </div>
     <div class="card">
       <div class="row"><h2>JSON 预览</h2>
@@ -120,19 +132,21 @@ let currentSessionId = null;
 async function j(url, options){ const r = await fetch(url, options); return await r.json(); }
 function card(title, value, extra='') { return `<div class="card"><div class="muted">${title}</div><div class="big">${value}</div><div class="muted">${extra}</div></div>`; }
 function esc(s){ return String(s ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;'); }
-async function boot(){
+async function refreshDashboard(first=false){
   const stats = await j('/api/stats?limit=20');
   const history = await j('/api/history?limit=8');
   const summary = await j('/api/summary?limit=8');
-  const modules = await j('/api/modules');
+  if (first) {
+    const modules = await j('/api/modules');
+    const modSel = document.getElementById('module');
+    modules.forEach(name => { const opt = document.createElement('option'); opt.value = name; opt.textContent = name; modSel.appendChild(opt); });
+  }
   document.getElementById('stats').innerHTML = [
     card('平均分', (stats.averageScore ?? 0).toFixed(2) + '/10', 'samples=' + stats.samples),
     card('低分率', Math.round((stats.lowScoreRate ?? 0) * 100) + '%', 'count=' + (stats.lowScoreCount ?? 0)),
     card('最弱维度', stats.weakestDimension?.label ?? '—', (stats.weakestDimension?.value ?? 0).toFixed(2)),
     card('Top Missing', stats.topMissingPoints?.[0]?.text ?? '—', '出现 ' + (stats.topMissingPoints?.[0]?.count ?? 0) + ' 次'),
   ].join('');
-  const modSel = document.getElementById('module');
-  modules.forEach(name => { const opt = document.createElement('option'); opt.value = name; opt.textContent = name; modSel.appendChild(opt); });
   document.getElementById('history-count').textContent = String(history.length);
   document.getElementById('history-table').innerHTML = '<tr><th>Topic</th><th>分数</th><th>Missing</th></tr>' + history.map((x,i)=>`<tr><td><a onclick="showHistory(${i})">[${esc(x.topic?.category)}] ${esc(x.topic?.title)}</a></td><td>${esc(x.score)}/10</td><td>${esc(x.topMissing||'')}</td></tr>`).join('');
   window.__history = history;
@@ -140,6 +154,7 @@ async function boot(){
   document.getElementById('summary-table').innerHTML = '<tr><th>平均分</th><th>最弱维度</th><th>建议</th></tr>' + summary.map((x,i)=>`<tr><td><a onclick="showSummary(${i})">${(x.averageScore ?? 0).toFixed(2)}/10</a></td><td>${esc(x.weakestDimension?.label || '')}</td><td>${esc(x.suggestion || '')}</td></tr>`).join('');
   window.__summary = summary;
 }
+async function boot(){ await refreshDashboard(true); }
 async function startSession(){
   const payload = {
     mode: document.getElementById('mode').value,
@@ -150,10 +165,15 @@ async function startSession(){
   const data = await j('/api/session/start', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
   currentSessionId = data.sessionId;
   document.getElementById('session-pill').textContent = data.sessionId;
+  document.getElementById('qa-status').textContent = '第 1 轮';
   document.getElementById('qa-box').style.display = 'block';
+  document.getElementById('topic-pill').textContent = `[${data.topic?.category || '未知'}] ${data.topic?.title || '未知题目'}`;
   document.getElementById('question-box').textContent = data.question;
   document.getElementById('answer-box').value = '';
   document.getElementById('result-box').textContent = '等待作答…';
+  document.getElementById('submit-btn').disabled = false;
+  document.getElementById('submit-btn').textContent = '提交答案';
+  document.getElementById('next-btn').style.display = 'none';
 }
 function renderResult(data){
   if (data.error) {
@@ -167,10 +187,26 @@ function renderResult(data){
   const statusLine = data.status === 'followup'
     ? `<div class="warn"><strong>需要追问：</strong>当前分数偏低，下面是追问题目。</div>`
     : `<div class="ok"><strong>本轮完成。</strong>${data.historyPath ? ` 已保存到 <span class="mono">${esc(data.historyPath)}</span>` : ''}</div>`;
+  const bars = [
+    ['准确性', dims.accuracy ?? 0, 4],
+    ['完整性', dims.completeness ?? 0, 3],
+    ['场景意识', dims.practicality ?? 0, 2],
+    ['表达清晰度', dims.clarity ?? 0, 1],
+  ].map(([label, value, max]) => `
+    <div class="score-grid">
+      <div class="muted">${label}</div>
+      <div class="bar"><div class="fill" style="width:${(Number(value) / Number(max)) * 100}%"></div></div>
+      <div>${value}/${max}</div>
+    </div>
+  `).join('');
   document.getElementById('result-box').innerHTML = `
     ${statusLine}
-    <div class="row"><div><strong>总分</strong></div><div class="big">${esc(r.score ?? '-')}</div></div>
-    <div class="muted">准确性 ${esc(dims.accuracy ?? 0)}/4 · 完整性 ${esc(dims.completeness ?? 0)}/3 · 场景意识 ${esc(dims.practicality ?? 0)}/2 · 表达清晰度 ${esc(dims.clarity ?? 0)}/1</div>
+    <div class="meta-grid">
+      <div class="subcard"><div class="muted">总分</div><div class="big">${esc(r.score ?? '-')}</div></div>
+      <div class="subcard"><div class="muted">当前状态</div><div>${data.status === 'followup' ? '待追问' : '已完成'}</div></div>
+      <div class="subcard"><div class="muted">会话</div><div>${esc(document.getElementById('session-pill').textContent)}</div></div>
+    </div>
+    <div style="margin-top:10px;"><strong>维度分</strong>${bars}</div>
     <div style="margin-top:10px;"><strong>Strengths</strong><ul>${strengths || '<li>—</li>'}</ul></div>
     <div style="margin-top:10px;"><strong>Missing Points</strong><ul>${missing || '<li>—</li>'}</ul></div>
     <div style="margin-top:10px;"><strong>Ideal Answer</strong><pre>${esc(r.idealAnswer || '')}</pre></div>
@@ -178,12 +214,28 @@ function renderResult(data){
 }
 async function submitAnswer(){
   if(!currentSessionId) return;
+  const btn = document.getElementById('submit-btn');
+  btn.disabled = true;
+  btn.textContent = '提交中...';
   const answer = document.getElementById('answer-box').value;
   const data = await j('/api/session/answer', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({sessionId: currentSessionId, answer})});
   renderResult(data);
   if (data.nextQuestion) {
+    document.getElementById('qa-status').textContent = '第 2 轮（追问）';
     document.getElementById('question-box').textContent = data.nextQuestion;
     document.getElementById('answer-box').value = '';
+    btn.disabled = false;
+    btn.textContent = '提交答案';
+  } else if (data.status === 'done') {
+    document.getElementById('session-pill').textContent = '已完成';
+    document.getElementById('qa-status').textContent = '本轮完成';
+    document.getElementById('next-btn').style.display = 'inline-block';
+    btn.disabled = false;
+    btn.textContent = '提交答案';
+    await refreshDashboard(false);
+  } else {
+    btn.disabled = false;
+    btn.textContent = '提交答案';
   }
 }
 async function loadJson(kind){
@@ -191,8 +243,44 @@ async function loadJson(kind){
   const data = await j(url);
   document.getElementById('json-box').textContent = JSON.stringify(data, null, 2);
 }
-function showHistory(i){ document.getElementById('detail-box').textContent = JSON.stringify(window.__history[i], null, 2); }
-function showSummary(i){ document.getElementById('detail-box').textContent = JSON.stringify(window.__summary[i], null, 2); }
+function showHistory(i){
+  const x = window.__history[i];
+  const rounds = (x.rounds || []).map((r, idx) => `
+    <div class="card" style="margin-top:10px;">
+      <div><strong>Round ${idx + 1}</strong></div>
+      <div class="muted">Question</div><pre>${esc(r.question || '')}</pre>
+      <div class="muted">Answer</div><pre>${esc(r.answer || '')}</pre>
+      <div class="muted">Score</div><div>${esc(r.score || '')}/10</div>
+      <div class="muted">Missing</div><ul>${(r.missing_points || []).map(m => `<li>${esc(m)}</li>`).join('') || '<li>—</li>'}</ul>
+      <div class="muted">Ideal Answer</div><pre>${esc(r.ideal_answer || '')}</pre>
+    </div>
+  `).join('');
+  document.getElementById('detail-box').innerHTML = `
+    <div class="card">
+      <div class="row"><strong>[${esc(x.topic?.category)}] ${esc(x.topic?.title)}</strong><span class="pill">${esc(x.score)}/10</span></div>
+      <div class="muted">Scope: ${esc(x.scope || 'Random')}</div>
+      <div class="muted">Path: ${esc(x.path || '')}</div>
+      ${rounds || '<div class="muted">无详情</div>'}
+    </div>
+  `;
+}
+function showSummary(i){
+  const x = window.__summary[i];
+  const topics = (x.topics || []).map(t => `<li>[${esc(t.category)}] ${esc(t.title)} (${esc(t.score)}/10)</li>`).join('');
+  document.getElementById('detail-box').innerHTML = `
+    <div class="card">
+      <div class="row"><strong>Session Summary</strong><span class="pill">${(x.averageScore ?? 0).toFixed(2)}/10</span></div>
+      <div class="muted">Completed: ${esc(x.completed)}</div>
+      <div class="muted">Low-score rounds: ${esc(x.lowScoreRounds)}</div>
+      <div class="muted">Weakest: ${esc(x.weakestDimension?.label || '')}</div>
+      <div class="muted">Best topic: [${esc(x.bestTopic?.category || '')}] ${esc(x.bestTopic?.title || '')}</div>
+      <div class="muted">Worst topic: [${esc(x.worstTopic?.category || '')}] ${esc(x.worstTopic?.title || '')}</div>
+      <div class="muted">Top missing</div><pre>${esc(x.topMissing || '')}</pre>
+      <div class="muted">Suggestion</div><pre>${esc(x.suggestion || '')}</pre>
+      <div class="muted">Topics</div><ul>${topics || '<li>—</li>'}</ul>
+    </div>
+  `;
+}
 boot();
 </script>
 </body>
