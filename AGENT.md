@@ -18,9 +18,9 @@ pip install -r requirements.txt
 
 **3. Configure your LLM** — edit `.env` in the project root:
 ```
-LLM_PROVIDER=anthropic          # anthropic | openai | ollama
-MODEL_INTERVIEWER=claude-sonnet-4-6
-ANTHROPIC_API_KEY=sk-ant-...    # your real key
+LLM_PROVIDER=siliconflow        # anthropic | openai | ollama | siliconflow
+MODEL_INTERVIEWER=Qwen/Qwen2.5-7B-Instruct
+SILICONFLOW_API_KEY=sk-...      # your real key
 ```
 
 **4. Build the concept index** (one-time, re-run if notes change)
@@ -80,12 +80,18 @@ Each session runs one interview cycle (max 2 rounds):
 | Anthropic (Claude) | `anthropic` | `ANTHROPIC_API_KEY` | `claude-sonnet-4-6` |
 | OpenAI | `openai` | `OPENAI_API_KEY` | `gpt-4o` |
 | Ollama (local) | `ollama` | none | `llama3` |
+| SiliconFlow | `siliconflow` | `SILICONFLOW_API_KEY` | `Qwen/Qwen2.5-7B-Instruct` |
 
 To switch providers, change `LLM_PROVIDER` and `MODEL_INTERVIEWER` in `.env`.
 
 For Ollama, set the base URL if not using the default:
 ```
 OLLAMA_BASE_URL=http://localhost:11434/v1
+```
+
+For SiliconFlow, the default base URL is:
+```
+SILICONFLOW_BASE_URL=https://api.siliconflow.cn/v1
 ```
 
 ---

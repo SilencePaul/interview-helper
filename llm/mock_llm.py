@@ -6,10 +6,19 @@ from llm.base import BaseLLM
 
 _MOCK_QUESTION = "请解释一下这个概念的核心原理，并说明它在实际工程中的应用场景？"
 
-_MOCK_FOLLOWUP = "你提到了基本原理，但能具体说说底层实现机制是什么吗？比如它是如何处理边界条件的？"
+_MOCK_FOLLOWUP_ACCURACY = "你刚才的表述有点泛。先别展开场景，能不能先更准确地定义一下这个概念，并说明它和相近概念的边界区别？"
+_MOCK_FOLLOWUP_COMPLETENESS = "你已经说到一部分了。如果让我按要点检查，这个问题你还漏了哪些关键点？可以再补全一下。"
+_MOCK_FOLLOWUP_PRACTICALITY = "如果把它放到真实工程里，你会在什么场景下用它？有什么收益、代价或风险需要权衡？"
+_MOCK_FOLLOWUP_CLARITY = "你知道这个点，但表达还可以更清楚一些。你能按“定义-原理-场景”这三个层次重新组织一下回答吗？"
 
 _MOCK_EVALUATION_LOW = {
     "score": 4,
+    "dimensions": {
+        "accuracy": 2,
+        "completeness": 1,
+        "practicality": 0,
+        "clarity": 1,
+    },
     "strengths": [
         "提到了基本概念",
     ],
@@ -27,6 +36,12 @@ _MOCK_EVALUATION_LOW = {
 
 _MOCK_EVALUATION_HIGH = {
     "score": 7,
+    "dimensions": {
+        "accuracy": 3,
+        "completeness": 2,
+        "practicality": 1,
+        "clarity": 1,
+    },
     "strengths": [
         "理解了核心概念，能够清晰描述基本原理",
         "举了相关的工程实例，说明了使用场景",
@@ -44,21 +59,18 @@ _MOCK_EVALUATION_HIGH = {
 
 
 class MockLLM(BaseLLM):
-    """Offline mock LLM for dev mode. Returns canned responses. No API calls.
-
-    Evaluation cycle in dev mode:
-      - First eval call  → low score (4) to exercise the follow-up branch.
-      - Second eval call → high score (7) as the final result.
-    """
-
     def __init__(self) -> None:
         self._eval_count = 0
 
     def complete(self, prompt: str) -> str:
-        # Follow-up question generation (contains the unique marker from _FOLLOWUP_PROMPT)
-        if "Key points they missed" in prompt:
-            return _MOCK_FOLLOWUP
-        # Evaluation requests
+        if "Lowest scoring dimension" in prompt:
+            if "场景意识" in prompt:
+                return _MOCK_FOLLOWUP_PRACTICALITY
+            if "完整性" in prompt:
+                return _MOCK_FOLLOWUP_COMPLETENESS
+            if "表达清晰度" in prompt:
+                return _MOCK_FOLLOWUP_CLARITY
+            return _MOCK_FOLLOWUP_ACCURACY
         if "valid JSON" in prompt or '"score"' in prompt:
             self._eval_count += 1
             if self._eval_count == 1:

@@ -16,3 +16,8 @@ __pycache__/
 
 # Generated index (rebuild with: python -m app build-index)
 data/concepts_index.json
+
+# Generated runtime data
+data/history/
+data/summaries/
+data/web-task-*.log
